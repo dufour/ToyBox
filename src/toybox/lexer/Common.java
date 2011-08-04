@@ -17,9 +17,9 @@ public final class Common {
 	/** Default whitespace characters */
 	public static final String Whitespace          = "\\s+";
 	/** A double-quoted string literal, with escape sequences. */
-	public static final String DoubleQuotedString  = "\"([^\\\n]|(\\.))*?\"";
+	public static final String DoubleQuotedString  = "\"([^\"\\n]|(\\\\.))*\"";
 	/** A single-quoted string literal, with escape sequences. */
-	public static final String SingleQuotedString  = "'([^\\\n]|(\\.))*?'";
+	public static final String SingleQuotedString  = "'([^'\\n]|(\\\\.))*?'";
 	
 	// Delimiters
 	public static final String L_BRACE   = "\\{";

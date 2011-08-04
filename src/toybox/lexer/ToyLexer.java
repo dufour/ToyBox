@@ -190,7 +190,7 @@ matching:
 			}
 			
 			// No match
-			throw new IllegalStateException("No match at position " + pos);
+			throw new IllegalStateException("No match at " + location());
 		}
 	}
 
