@@ -39,8 +39,7 @@ import toybox.util.Location;
 public class ToyLexer<T> {
 	/*
 	 * To Do:
-	 *   - Make sure the lexer picks the longest match, rather than the first one
-	 *   - Make sure that overriden/inaccessible methods don't get registered
+	 *   - Make sure that overridden/inaccessible methods don't get registered
 	 *   - Add states  
 	 */
 	private List<TokenRule> rules = new LinkedList<TokenRule>();
@@ -48,6 +47,13 @@ public class ToyLexer<T> {
 	private int pos;
 	private int lineno;
 	private int column;
+	
+	public enum MatchStrategy {
+		MATCH_FIRST,
+		MATCH_LONGEST;
+	}
+	
+	private MatchStrategy match_strategy = MatchStrategy.MATCH_LONGEST;
 	
 	public ToyLexer() {
 		add(this);
@@ -57,6 +63,14 @@ public class ToyLexer<T> {
 		for (Object r: rules) {
 			add(r);
 		}
+	}
+	
+	public MatchStrategy getMatchStrategy() {
+		return match_strategy;
+	}
+	
+	public void setMatchStrategy(MatchStrategy strategy) {
+		this.match_strategy = strategy;
 	}
 
 	public void input(File f) throws IOException {
@@ -150,6 +164,7 @@ public class ToyLexer<T> {
 	
 	private void updateLocation(String val) {
 		int i = val.length();
+		pos += i;
 		i = val.lastIndexOf('\n', i - 1);
 		if (i >= 0) {
 			column = val.length() - i;
@@ -172,21 +187,32 @@ matching:
 		while (true) {
 			if (eof()) return null;
 			
+			TokenRule candidate = null;
+			String maxMatch = null;
+			
 			for (TokenRule r: this.rules) {
 				Matcher m = r.pattern.matcher(this.input);
 				if (m.find(pos)) {
 					MatchResult result = m.toMatchResult();
 					if (result.start() == pos) {
-						pos = result.end();
-						String val = result.group();
-						updateLocation(val);
-						T token = makeToken(r, val);						
-						if (token == null) {
-							continue matching;			
+						// Rule matches
+						maxMatch = result.group();
+						candidate = r;
+						
+						if (match_strategy == MatchStrategy.MATCH_FIRST) {
+							break;
 						}
-						return token;
 					}
 				}
+			}
+			
+			if (candidate != null) {
+				updateLocation(maxMatch);
+				T token = makeToken(candidate, maxMatch);
+				if (token == null) {
+					continue matching;			
+				}
+				return token;
 			}
 			
 			// No match
