@@ -16,7 +16,7 @@ public final class IO {
 		// no instances
 	}
 	
-	public static String readFull(InputStream s) throws IOException {
+	public static String readFully(InputStream s) throws IOException {
 		return readFully(new BufferedReader(new InputStreamReader(s)));
 	}
 	

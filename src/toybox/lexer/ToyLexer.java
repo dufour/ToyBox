@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -79,6 +80,10 @@ public class ToyLexer<T> {
 	
 	public void input(Reader r) throws IOException {
 		this.input(IO.readFully(r));
+	}
+	
+	public void input(InputStream s) throws IOException {
+		this.input(IO.readFully(s));
 	}
 	
 	public void input(String s) {
