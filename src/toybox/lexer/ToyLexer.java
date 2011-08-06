@@ -1,5 +1,7 @@
 package toybox.lexer;
 
+import static toybox.lexer.State.ANY;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -8,8 +10,12 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
+import java.util.Stack;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -38,16 +44,18 @@ import toybox.util.Location;
  * 
  */
 public class ToyLexer<T> {
+	private static final String[] DEFAULT_STATES = new String[] { ANY };
+	
 	/*
 	 * To Do:
 	 *   - Make sure that overridden/inaccessible methods don't get registered
-	 *   - Add states  
 	 */
 	private List<TokenRule> rules = new LinkedList<TokenRule>();
 	private String input; 	
 	private int pos;
 	private int lineno;
 	private int column;
+	private Stack<String> states = new Stack<String>();
 	
 	public enum MatchStrategy {
 		MATCH_FIRST,
@@ -58,11 +66,28 @@ public class ToyLexer<T> {
 	
 	public ToyLexer() {
 		add(this);
+		states.push(ANY);
 	}
 	
 	public ToyLexer(Object... rules) {
 		for (Object r: rules) {
 			add(r);
+		}
+		states.push(ANY);
+	}
+	
+	public void enter(String state) {
+		this.states.push(state);
+	}
+	
+	public String state() {
+		return this.states.peek();
+	}
+	
+	public void exit(String state) {
+		String current = this.states.pop();
+		if (!current.equals(state)) {
+			throw new IllegalStateException("State mismatch");
 		}
 	}
 	
@@ -93,12 +118,16 @@ public class ToyLexer<T> {
 		this.column = 1;
 	}
 	
-	public void add(Object obj) {
-		this.add(obj, obj.getClass());
+	public void add(Object obj) {		
+		Class<? extends Object> c = obj.getClass();
+		Set<Method> reachableMethods = new HashSet<Method>(Arrays.asList(c.getMethods()));
+		this.add(obj, c, reachableMethods);
 	}
 	
-	private void add(Object obj, Class<?> c) {
+	private void add(Object obj, Class<?> c, Set<Method> reachable) {
 		for (Method m: c.getDeclaredMethods()) {
+			if (!reachable.contains(m)) continue;
+			
 			if (m.isAnnotationPresent(Token.class)) {
 				Token token = m.getAnnotation(Token.class);
 				for (String v: token.value()) {
@@ -110,13 +139,19 @@ public class ToyLexer<T> {
 		
 		Class<?> sc = c.getSuperclass();
 		if (sc != null) {
-			this.add(obj, sc);
+			this.add(obj, sc, reachable);
 		}
 	}
 	
 	private void register(Pattern p, Object r, Method m) {
 		checkSignature(m);
-		this.rules.add(new TokenRule(p, r, m));
+		String[] states;
+		if (m.isAnnotationPresent(State.class)) {
+			states = m.getAnnotation(State.class).value();
+		} else {
+			states = DEFAULT_STATES;
+		}
+		this.rules.add(new TokenRule(p, r, m, states));
 	}
 	
 	private static void checkSignature(Method m) {
@@ -196,6 +231,8 @@ matching:
 			String maxMatch = null;
 			
 			for (TokenRule r: this.rules) {
+				if (!r.validForState(this.state())) continue;
+				
 				Matcher m = r.pattern.matcher(this.input);
 				if (m.find(pos)) {
 					MatchResult result = m.toMatchResult();
@@ -229,11 +266,27 @@ matching:
 		public final Pattern pattern;
 		public final Method method;
 		public final Object receiver;
+		public final String[] states;
 		
-		public TokenRule(Pattern p, Object r, Method m) {			
+		public TokenRule(Pattern p, Object r, Method m, String[] s) {			
 			pattern = p;
 			receiver = r; 
 			method = m;
+			states = s;
+		}
+		
+		public boolean validForState(String state) {
+			if (state == ANY) {
+				return true;
+			}
+			
+			for (String s: states) {
+				if (s == ANY || s.equals(state)) {
+					return true;
+				}
+			}
+			
+			return false;
 		}
 		
 		public boolean wantsLocation() {
